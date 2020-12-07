@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -27,7 +28,7 @@ func (h *IndexHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 // CloseHandler 可触发http.Server Close
 type CloseHandler struct {
-	Server *http.Server
+	CloseChan chan error
 }
 
 func (h *CloseHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -35,13 +36,15 @@ func (h *CloseHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(200)
 	_, _ = w.Write([]byte("closing"))
 
-	err := h.Server.Close()
-	if err != nil {
-		fmt.Printf("service close err %+v \n", err)
+	select {
+	default:
+		h.CloseChan <- errors.New("api shutdown")
+	case <-h.CloseChan:
 	}
+
 }
 
-func startServer() {
+func startServer(stopCh chan<- struct{}) {
 
 	// index1 handler
 	mux1 := http.NewServeMux()
@@ -49,7 +52,7 @@ func startServer() {
 	closeHandler1 := &CloseHandler{}
 	mux1.Handle("/close", closeHandler1)
 
-	s1Ch := make(chan error)
+	s1Ch := make(chan error, 1)
 
 	// index2 handler
 	mux2 := http.NewServeMux()
@@ -57,7 +60,7 @@ func startServer() {
 	closeHandler2 := &CloseHandler{}
 	mux2.Handle("/close", closeHandler1)
 
-	s2Ch := make(chan error)
+	s2Ch := make(chan error, 1)
 
 	// 监听系统信号
 	ch := make(chan os.Signal, 10)
@@ -67,26 +70,33 @@ func startServer() {
 	group, _ := errgroup.WithContext(ctx)
 
 	server1 := &http.Server{Addr: HOST1, Handler: mux1}
-	closeHandler1.Server = server1
+	closeHandler1.CloseChan = s1Ch
 	server2 := &http.Server{Addr: HOST2, Handler: mux2}
-	closeHandler2.Server = server2
+	closeHandler2.CloseChan = s2Ch
 
 	group.Go(func() error {
 		// 收到任何一个信号就关闭服务
 		select {
 		case <-ch:
 			fmt.Println("receive close signal!")
-		case <-s1Ch:
-			fmt.Println("receive server1 close!")
-		case <-s2Ch:
-			fmt.Println("receive server2 close!")
+		case err := <-s1Ch:
+			fmt.Printf("receive server1 close! %+v\n", err)
+		case err := <-s2Ch:
+			fmt.Printf("receive server2 close! %+v\n", err)
 		}
 
 		signal.Stop(ch)
-		err1 := server1.Close()
+		close(s1Ch)
+		close(s2Ch)
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		defer cancel()
+		err1 := server1.Shutdown(ctx)
 		fmt.Printf("server1 close %+v \n", err1)
 
-		err2 := server2.Close()
+		ctx, cancel = context.WithTimeout(context.Background(), time.Second*5)
+		defer cancel()
+		err2 := server2.Shutdown(ctx)
 		fmt.Printf("server2 close %+v \n", err2)
 
 		return nil
@@ -94,26 +104,34 @@ func startServer() {
 
 	group.Go(func() error {
 		err := server1.ListenAndServe()
-		close(s1Ch)
+		select {
+		default:
+			s1Ch <- err
+		case <-s1Ch:
+		}
 		fmt.Printf("server1 closed %+v \n", err)
 		return nil
 	})
 
 	group.Go(func() error {
 		err := server2.ListenAndServe()
-		close(s2Ch)
+		select {
+		default:
+			s1Ch <- err
+		case <-s1Ch:
+		}
 		fmt.Printf("server2 closed %+v \n", err)
 		return nil
 	})
 
 	err := group.Wait()
-
+	stopCh <- struct{}{}
 	fmt.Printf("group err %+v \n", err)
 }
 
 func main() {
-	startServer()
-
-	// sleep to wait all logs
-	time.Sleep(time.Second * 5)
+	stopCh := make(chan struct{}, 1)
+	go startServer(stopCh)
+	<-stopCh
+	close(stopCh)
 }
