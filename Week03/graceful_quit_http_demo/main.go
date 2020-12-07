@@ -25,6 +25,7 @@ func (h *IndexHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	_, _ = w.Write([]byte(h.name))
 }
 
+// CloseHandler 可触发http.Server Close
 type CloseHandler struct {
 	Server *http.Server
 }
