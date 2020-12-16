@@ -1,0 +1,3 @@
+#!/bin/bash
+cd ./api/profile/
+protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative profile.proto;

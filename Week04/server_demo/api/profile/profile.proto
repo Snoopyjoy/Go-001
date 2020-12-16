@@ -1,0 +1,16 @@
+syntax = "proto3";
+package profile;
+option go_package = ".;profile";
+
+service Service {
+    rpc Profile(ProfileArgs) returns (ProfileResp) {};
+}
+
+message ProfileArgs {
+    uint64 uid = 1;
+}
+
+message ProfileResp {
+    string nickname = 1;
+    int32 coins = 2;
+}

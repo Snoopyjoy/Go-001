@@ -5,6 +5,9 @@
 		},
 		{
 			"path": "Week03/graceful_quit_http_demo"
+		},
+		{
+			"path": "Week04/server_demo"
 		}
 	],
 	"settings": {}

@@ -1,0 +1,9 @@
+# 服务地址
+addr : :8080
+reflectionEnable : true
+db: 
+  addr: test
+  passwd: xxx
+cache:
+  addr: test
+  passwd: xxx
