@@ -29,11 +29,10 @@ func ReadConf(cfgFile string) ([]byte, error) {
 }
 
 type ProfileApp struct {
-	Conf         *Conf
-	ConfRaw      []byte
-	GrpcServer   *grpc.Server
-	SignalChan   chan os.Signal
-	ServeErrChan chan error
+	Conf       *Conf
+	ConfRaw    []byte
+	GrpcServer *grpc.Server
+	SignalChan chan os.Signal
 }
 
 func NewProfileApp(confRaw []byte) (*ProfileApp, error) {
@@ -50,8 +49,7 @@ func NewProfileApp(confRaw []byte) (*ProfileApp, error) {
 }
 
 func (app *ProfileApp) Start() error {
-	ctx := context.Background()
-	group, _ := errgroup.WithContext(ctx)
+	group, ctx := errgroup.WithContext(context.Background())
 
 	if app.Conf.ReflectionEnable {
 		// 开启grpc反射，方便调试
@@ -59,18 +57,11 @@ func (app *ProfileApp) Start() error {
 	}
 
 	app.SignalChan = make(chan os.Signal, 10)
-	app.ServeErrChan = make(chan error, 1)
 	group.Go(func() error {
-		return app.listenStopSignal()
+		return app.listenStopSignal(ctx)
 	})
 	group.Go(func() error {
-		err := app.serve()
-		select {
-		default:
-			app.ServeErrChan <- err
-		case <-app.ServeErrChan:
-		}
-		return err
+		return app.serve()
 	})
 
 	err := group.Wait()
@@ -88,16 +79,13 @@ func (app *ProfileApp) serve() error {
 	fmt.Printf("service serve at %s\n", app.Conf.Addr)
 	return app.GrpcServer.Serve(lis)
 }
-func (app *ProfileApp) listenStopSignal() error {
+func (app *ProfileApp) listenStopSignal(ctx context.Context) error {
 	signal.Notify(app.SignalChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 	select {
+	case <-ctx.Done():
 	case <-app.SignalChan:
 		fmt.Println("receive close signal!")
-	case err := <-app.ServeErrChan:
-		fmt.Printf("receive server close! %+v\n", err)
 	}
-	signal.Stop(app.SignalChan)
-	close(app.ServeErrChan)
 	app.GrpcServer.GracefulStop()
 	return nil
 }

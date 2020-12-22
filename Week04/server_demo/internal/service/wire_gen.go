@@ -32,6 +32,7 @@ func InitializeService(cfgRaw []byte) (*ProfileService, error) {
 	userBiz := biz.NewUserBiz(userRepo)
 	coinRepo := biz.NewCoinRepo(storage, dbDB)
 	coinBiz := biz.NewCoinBiz(coinRepo)
-	profileService := NewProfileService(conf, userBiz, coinBiz)
+	profileApp := NewProfileApp(userBiz, coinBiz)
+	profileService := NewProfileService(conf, profileApp)
 	return profileService, nil
 }

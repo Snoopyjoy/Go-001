@@ -23,14 +23,15 @@ type ProfileService struct {
 	userBiz *biz.UserBiz
 	coinBiz *biz.CoinBiz
 
+	profileApp *ProfileApp
+
 	profile.UnimplementedServiceServer
 }
 
-func NewProfileService(cfg *Conf, userBiz *biz.UserBiz, coinBiz *biz.CoinBiz) *ProfileService {
+func NewProfileService(cfg *Conf, profileApp *ProfileApp) *ProfileService {
 	return &ProfileService{
-		Conf:    cfg,
-		userBiz: userBiz,
-		coinBiz: coinBiz,
+		Conf:       cfg,
+		profileApp: profileApp,
 	}
 }
 
@@ -44,19 +45,10 @@ func ParseConf(cfgRaw []byte) (*Conf, error) {
 }
 
 func (s *ProfileService) Profile(ctx context.Context, in *profile.ProfileArgs) (*profile.ProfileResp, error) {
-	userInfo, err := s.userBiz.GetUserById(ctx, in.Uid)
+	ret, err := s.profileApp.GetUserProfile(ctx, in.Uid)
 	if err != nil {
-		fmt.Printf("GetUserById err %+v", err)
+		fmt.Printf("GetUserProfile err %+v", err)
 		return nil, err
 	}
-	coinInfo, err := s.coinBiz.GetUserCoin(ctx, in.Uid)
-	if err != nil {
-		fmt.Printf("GetUserCoin err %+v", err)
-		return nil, err
-	}
-
-	return &profile.ProfileResp{
-		Nickname: userInfo.Nickname,
-		Coins:    coinInfo.Num,
-	}, nil
+	return ret, nil
 }

@@ -12,6 +12,7 @@ import (
 
 func InitializeService(cfgRaw []byte) (*ProfileService, error) {
 	wire.Build(NewProfileService,
+		NewProfileApp,
 		biz.NewCoinBiz,
 		biz.NewUserBiz,
 		biz.NewUserRepo,
