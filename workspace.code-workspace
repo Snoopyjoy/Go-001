@@ -8,6 +8,9 @@
 		},
 		{
 			"path": "Week04/server_demo"
+		},
+		{
+			"path": "Week09/tcp_server"
 		}
 	],
 	"settings": {}
